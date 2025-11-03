@@ -1,6 +1,7 @@
 "use strict";
 
 import { fetchProducts, fetchCategories } from "./functions.js";
+import { saveVote, getVotes } from "./firebase.js";
 
 (() => {
     alert("¡Bienvenido a la página!");
@@ -138,9 +139,157 @@ const renderCategories = async () => {
     }
 }
 
+/**
+ * Habilita el formulario de votación
+ * @function
+ * @description Configura el event listener para el formulario de votación
+ */
+const enableForm = () => {
+  const form = document.getElementById('form_voting');
+  
+  if (form) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      
+      const selectProduct = document.getElementById('select_product');
+      const productID = selectProduct.value;
+
+      if (!productID) {
+        alert('Por favor, selecciona un producto para votar.');
+        return;
+      }
+      
+      try {
+        const result = await saveVote(productID);
+        
+        if (result.success) {
+          alert(result.message);
+          form.reset();
+          await displayVotes();
+        } else {
+          alert(result.message);
+        }
+      } catch (error) {
+        alert('Ocurrió un error inesperado al guardar el voto.');
+      }
+    });
+  }
+};
+
+/**
+ * Muestra los votos en una tabla HTML
+ * @function
+ * @async
+ * @description Obtiene los votos de Firebase y los muestra en una tabla
+ */
+const displayVotes = async () => {
+  try {
+    const result = await getVotes();
+    const container = document.getElementById('results');
+    
+    if (!result.success) {
+      container.innerHTML = `<p class="text-red-500">Error: ${result.message}</p>`;
+      return;
+    }
+    
+    const votes = result.data;
+
+    if (Object.keys(votes).length === 0) {
+      container.innerHTML = `
+        <div class="text-center p-4 bg-gray-100 rounded-lg">
+          <p class="text-gray-600">No hay votos registrados todavía.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const voteCounts = {};
+    Object.values(votes).forEach(vote => {
+      if (!voteCounts[vote.productID]) {
+        voteCounts[vote.productID] = 0;
+      }
+      voteCounts[vote.productID]++;
+    });
+
+    let tableHTML = `
+      <div class="overflow-x-auto">
+        <table class="min-w-full bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
+          <thead class="bg-gray-200 dark:bg-gray-700">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Producto
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Total de Votos
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Porcentaje
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+    `;
+    
+    const totalVotes = Object.values(voteCounts).reduce((sum, count) => sum + count, 0);
+    
+    const sortedProducts = Object.entries(voteCounts)
+      .sort(([,a], [,b]) => b - a);
+    
+    sortedProducts.forEach(([productID, count]) => {
+      const percentage = totalVotes > 0 ? ((count / totalVotes) * 100).toFixed(1) : 0;
+      
+      tableHTML += `
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+            ${productID}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+            ${count}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+            ${percentage}%
+          </td>
+        </tr>
+      `;
+    });
+    
+    tableHTML += `
+          </tbody>
+          <tfoot class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                TOTAL
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                ${totalVotes}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                100%
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    `;
+    
+    container.innerHTML = tableHTML;
+    
+  } catch (error) {
+    console.error('Error mostrando votos:', error);
+    const container = document.getElementById('results');
+    container.innerHTML = `
+      <div class="text-red-500 p-4 bg-red-50 rounded-lg">
+        Error al cargar los votos: ${error.message}
+      </div>
+    `;
+  }
+};
+
 (() => {
     showToast();
     showVideo();
     renderProducts();
     renderCategories();
+    enableForm();
+    displayVotes();
 })();
