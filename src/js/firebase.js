@@ -16,7 +16,7 @@ const database = getDatabase(app);
 
 const saveVote = (productID) => {
   const votesRef = ref(database, "votes");
-  const newVoteRef = push(votesRef); // <-- corregido
+  const newVoteRef = push(votesRef);
   const now = new Date();
   const voteData = {
     productID,
